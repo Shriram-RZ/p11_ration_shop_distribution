@@ -25,6 +25,8 @@ services:
       dockerfile: Dockerfile
     container_name: rationflow_backend
     restart: unless-stopped
+    # Single worker on startup avoids two workers racing to CREATE TYPE / seed.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-rationflow2024}@db:5432/${POSTGRES_DB:-rationflow}
       SECRET_KEY: ${SECRET_KEY:-rationflow-production-secret-key-minimum-32-characters}

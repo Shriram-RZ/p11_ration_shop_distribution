@@ -3,6 +3,9 @@ import type {
   User,
   LoginRequest,
   LoginResponse,
+  RegisterRequest,
+  Product,
+  Order,
   ChangePasswordRequest,
   RationCardHolder,
   RationCard,
@@ -68,6 +71,9 @@ export const authApi = {
   login: (data: LoginRequest) =>
     api.post<LoginResponse>('/auth/login', data).then((r) => r.data),
 
+  register: (data: RegisterRequest) =>
+    api.post<LoginResponse>('/auth/register', data).then((r) => r.data),
+
   logout: () =>
     api.post('/auth/logout').then((r) => r.data),
 
@@ -79,6 +85,22 @@ export const authApi = {
 
   refreshToken: () =>
     api.post<LoginResponse>('/auth/refresh').then((r) => r.data),
+}
+
+// ─── Storefront (customer side) ──────────────────────────────────────────────
+
+export const storeApi = {
+  getProducts: () =>
+    api.get<Product[]>('/store/products').then((r) => r.data),
+
+  createOrder: (data: {
+    items: { commodity_id: number; quantity: number }[]
+    delivery_address?: string
+    contact_phone?: string
+  }) => api.post<Order>('/store/orders', data).then((r) => r.data),
+
+  getMyOrders: () =>
+    api.get<Order[]>('/store/orders').then((r) => r.data),
 }
 
 // ─── Users ─────────────────────────────────────────────────────────────────────

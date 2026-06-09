@@ -1,6 +1,54 @@
 // ─── Auth & Users ───────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'shop_manager' | 'distribution_staff' | 'supervisor' | 'shopkeeper' | 'inspector'
+export type UserRole = 'admin' | 'shop_manager' | 'distribution_staff' | 'supervisor' | 'shopkeeper' | 'inspector' | 'customer'
+
+export interface RegisterRequest {
+  full_name: string
+  email: string
+  password: string
+  phone?: string
+}
+
+// ─── Storefront (customer side) ───────────────────────────────────────────────
+
+export interface Product {
+  commodity_id: number
+  name: string
+  unit: string
+  description?: string
+  price: number
+  available_quantity: number
+}
+
+export interface CartItem {
+  commodity_id: number
+  name: string
+  unit: string
+  price: number
+  quantity: number
+  available_quantity: number
+}
+
+export interface OrderItem {
+  commodity_id: number | null
+  commodity_name: string
+  unit: string
+  quantity: number
+  unit_price: number
+  subtotal: number
+}
+
+export interface Order {
+  id: number
+  order_number: string
+  customer_id: number
+  total_amount: number
+  status: string
+  delivery_address?: string
+  contact_phone?: string
+  created_at: string
+  items: OrderItem[]
+}
 
 export interface User {
   id: number | string
@@ -31,7 +79,10 @@ export interface LoginRequest {
 export interface LoginResponse {
   access_token: string
   token_type: string
-  user: User
+  user_id: number
+  email: string
+  full_name: string
+  role: UserRole
 }
 
 export interface ChangePasswordRequest {

@@ -40,8 +40,6 @@ def seed_initial_data(db: Session):
             name="Central Government Warehouse",
             location="Connaught Place, New Delhi",
             capacity=100000.0,
-            district="New Delhi",
-            state="Delhi",
             phone="011-12345678",
             is_active=True,
         )
@@ -173,6 +171,14 @@ async def lifespan(app: FastAPI):
         Notification, AuditLog, MonthlyReport,
     )
     Base.metadata.create_all(bind=engine)
+    # The `userrole` enum may predate the `customer` role on existing databases;
+    # add it idempotently (no-op on fresh installs that already include it).
+    from sqlalchemy import text
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'customer'"))
+    except Exception as e:
+        print(f"⚠️  Could not ensure 'customer' role enum value: {e}")
     db = SessionLocal()
     try:
         seed_initial_data(db)
@@ -207,10 +213,11 @@ app.add_middleware(
 from app.routers import (
     auth, users, beneficiaries, ration_cards,
     stock, distributions, warehouses, shops,
-    notifications, reports, audit,
+    notifications, reports, audit, storefront,
 )
 
 app.include_router(auth.router)
+app.include_router(storefront.router)
 app.include_router(users.router)
 app.include_router(beneficiaries.router)
 app.include_router(ration_cards.router)

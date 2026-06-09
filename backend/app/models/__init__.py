@@ -7,8 +7,12 @@ from app.models.distribution import Distribution, DistributionStatus
 from app.models.notification import Notification, NotificationType
 from app.models.audit_log import AuditLog
 from app.models.report import MonthlyReport
+from app.models.order import Order, OrderItem, OrderStatus
 
 __all__ = [
+    "Order",
+    "OrderItem",
+    "OrderStatus",
     "Warehouse",
     "Shop",
     "User",

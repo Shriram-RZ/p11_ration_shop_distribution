@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Wheat, Lock, Mail, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
@@ -10,7 +10,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const { login, isLoading } = useAuthStore()
   const [email, setEmail] = useState('admin@rationflow.gov.in')
-  const [password, setPassword] = useState('Admin@123')
+  const [password, setPassword] = useState('Admin@123456')
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,7 +26,8 @@ export default function LoginPage() {
     try {
       await login({ email: email.trim(), password })
       toast.success('Welcome back!')
-      navigate('/dashboard')
+      const role = useAuthStore.getState().user?.role
+      navigate(role === 'customer' ? '/shop' : '/dashboard')
     } catch (err) {
       const axiosError = err as AxiosError<{ detail: string }>
       const msg =
@@ -180,10 +181,17 @@ export default function LoginPage() {
                   Email: <span className="font-medium">admin@rationflow.gov.in</span>
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Password: <span className="font-medium">Admin@123</span>
+                  Password: <span className="font-medium">Admin@123456</span>
                 </p>
               </div>
             </div>
+
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-6">
+              New customer?{' '}
+              <Link to="/register" className="text-green-600 font-semibold hover:underline">
+                Create an account
+              </Link>
+            </p>
           </div>
         </div>
 

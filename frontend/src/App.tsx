@@ -4,7 +4,9 @@ import { AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/authStore'
 
 import Layout from '@/components/layout/Layout'
+import LandingPage from '@/pages/LandingPage'
 import LoginPage from '@/pages/LoginPage'
+import RegisterPage from '@/pages/RegisterPage'
 import Dashboard from '@/pages/Dashboard'
 import Stock from '@/pages/Stock'
 import StockTransactions from '@/pages/StockTransactions'
@@ -19,15 +21,41 @@ import AuditLogs from '@/pages/AuditLogs'
 import Users from '@/pages/Users'
 import Settings from '@/pages/Settings'
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
+import CustomerLayout from '@/pages/customer/CustomerLayout'
+import Storefront from '@/pages/customer/Storefront'
+import Cart from '@/pages/customer/Cart'
+import MyOrders from '@/pages/customer/MyOrders'
+
+function homeFor(role?: string) {
+  return role === 'customer' ? '/shop' : '/dashboard'
+}
+
+// Sends an authenticated user to their role's home, otherwise to login.
+function RoleHome() {
+  const { isAuthenticated, user } = useAuthStore()
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  return <>{children}</>
+  return <Navigate to={homeFor(user?.role)} replace />
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  const { isAuthenticated, user } = useAuthStore()
+  if (isAuthenticated) return <Navigate to={homeFor(user?.role)} replace />
+  return <>{children}</>
+}
+
+// Staff/admin-only area.
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (user?.role === 'customer') return <Navigate to="/shop" replace />
+  return <>{children}</>
+}
+
+// Customer-only storefront area.
+function CustomerRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (user?.role !== 'customer') return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
@@ -50,26 +78,34 @@ export default function App() {
     <BrowserRouter>
       <AnimatePresence mode="wait">
         <Routes>
-          {/* Public */}
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <LoginPage />
-              </PublicRoute>
-            }
-          />
+          {/* Public landing page */}
+          <Route path="/" element={<LandingPage />} />
 
-          {/* Protected */}
+          {/* Public */}
+          <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+
+          {/* Customer storefront */}
           <Route
-            path="/"
             element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
+              <CustomerRoute>
+                <CustomerLayout />
+              </CustomerRoute>
             }
           >
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="/shop" element={<Storefront />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/orders" element={<MyOrders />} />
+          </Route>
+
+          {/* Admin / staff */}
+          <Route
+            element={
+              <AdminRoute>
+                <Layout />
+              </AdminRoute>
+            }
+          >
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="stock" element={<Stock />} />
             <Route path="stock/transactions" element={<StockTransactions />} />
@@ -86,7 +122,7 @@ export default function App() {
           </Route>
 
           {/* Fallback */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<RoleHome />} />
         </Routes>
       </AnimatePresence>
     </BrowserRouter>

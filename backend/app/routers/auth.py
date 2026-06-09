@@ -7,10 +7,57 @@ from app.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.dependencies import get_current_active_user, log_audit, get_client_ip
 from app.models.user import User
-from app.schemas.auth import Token, LoginRequest, ChangePasswordRequest
+from app.schemas.auth import Token, LoginRequest, ChangePasswordRequest, RegisterRequest
 from app.schemas.user import UserResponse
+from app.models.user import UserRole
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+def register(
+    request: Request,
+    payload: RegisterRequest,
+    db: Session = Depends(get_db),
+):
+    """Public self sign-up for customers (storefront shoppers)."""
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists.",
+        )
+
+    user = User(
+        email=payload.email,
+        full_name=payload.full_name,
+        hashed_password=get_password_hash(payload.password),
+        role=UserRole.customer,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    log_audit(
+        db=db,
+        user_id=user.id,
+        action="REGISTER",
+        resource="auth",
+        details={"email": user.email},
+        ip_address=get_client_ip(request),
+    )
+
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role.value,
+    )
 
 
 @router.post("/login", response_model=Token)

@@ -11,7 +11,13 @@ class Settings(BaseSettings):
     FIRST_ADMIN_PASSWORD: str = "Admin@123456"
     APP_NAME: str = "RationFlow"
     DEBUG: bool = False
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    # Stored as a raw comma-separated string so pydantic-settings does not try to
+    # JSON-decode the env var. Use `allowed_origins` for the parsed list.
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def allowed_origins(self) -> List[str]:
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
 
     class Config:
         env_file = ".env"

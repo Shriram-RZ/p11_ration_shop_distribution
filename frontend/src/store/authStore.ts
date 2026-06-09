@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { authApi } from '@/services/api'
-import type { User, LoginRequest } from '@/types'
+import type { User, LoginRequest, RegisterRequest } from '@/types'
 
 interface AuthState {
   user: User | null
@@ -12,6 +12,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: LoginRequest) => Promise<void>
+  register: (data: RegisterRequest) => Promise<void>
   logout: () => void
   initialize: () => void
   setUser: (user: User) => void
@@ -33,7 +34,27 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true })
         try {
           const response = await authApi.login(credentials)
-          const { access_token, user } = response
+          // Backend returns a flat token payload, not a nested `user` object.
+          const { access_token, user_id, email, full_name, role } = response
+          const user: User = { id: user_id, email, full_name, role }
+          set({
+            user,
+            token: access_token,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+        } catch (error) {
+          set({ isLoading: false })
+          throw error
+        }
+      },
+
+      register: async (data) => {
+        set({ isLoading: true })
+        try {
+          const response = await authApi.register(data)
+          const { access_token, user_id, email, full_name, role } = response
+          const user: User = { id: user_id, email, full_name, role }
           set({
             user,
             token: access_token,
