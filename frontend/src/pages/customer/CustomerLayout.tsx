@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { ShoppingCart, Store, Package, LogOut, Wheat } from 'lucide-react'
+import { ShoppingCart, Store, Package, LogOut, Wheat, CreditCard } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useCartStore } from '@/store/cartStore'
 import { cn, getInitials } from '@/lib/utils'
@@ -47,8 +47,9 @@ export default function CustomerLayout() {
           </div>
 
           <nav className="flex items-center gap-1">
+            {navItem('/card', 'My Card', <CreditCard size={16} />)}
             {navItem('/shop', 'Shop', <Store size={16} />)}
-            {navItem('/orders', 'My Orders', <Package size={16} />)}
+            {navItem('/my-orders', 'My Orders', <Package size={16} />)}
             <NavLink
               to="/cart"
               className={({ isActive }) =>

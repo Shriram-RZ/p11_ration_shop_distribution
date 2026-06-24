@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>()(
           const response = await authApi.login(credentials)
           // Backend returns a flat token payload, not a nested `user` object.
           const { access_token, user_id, email, full_name, role } = response
-          const user: User = { id: user_id, email, full_name, role }
+          const user: User = { id: user_id, email: email ?? '', full_name, role }
           set({
             user,
             token: access_token,
@@ -54,7 +54,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await authApi.register(data)
           const { access_token, user_id, email, full_name, role } = response
-          const user: User = { id: user_id, email, full_name, role }
+          const user: User = { id: user_id, email: email ?? '', full_name, role }
           set({
             user,
             token: access_token,

@@ -20,11 +20,13 @@ import Reports from '@/pages/Reports'
 import AuditLogs from '@/pages/AuditLogs'
 import Users from '@/pages/Users'
 import Settings from '@/pages/Settings'
+import Orders from '@/pages/Orders'
 
 import CustomerLayout from '@/pages/customer/CustomerLayout'
 import Storefront from '@/pages/customer/Storefront'
 import Cart from '@/pages/customer/Cart'
 import MyOrders from '@/pages/customer/MyOrders'
+import MyCard from '@/pages/customer/MyCard'
 
 function homeFor(role?: string) {
   return role === 'customer' ? '/shop' : '/dashboard'
@@ -93,9 +95,10 @@ export default function App() {
               </CustomerRoute>
             }
           >
+            <Route path="/card" element={<MyCard />} />
             <Route path="/shop" element={<Storefront />} />
             <Route path="/cart" element={<Cart />} />
-            <Route path="/orders" element={<MyOrders />} />
+            <Route path="/my-orders" element={<MyOrders />} />
           </Route>
 
           {/* Admin / staff */}
@@ -107,6 +110,7 @@ export default function App() {
             }
           >
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="orders" element={<Orders />} />
             <Route path="stock" element={<Stock />} />
             <Route path="stock/transactions" element={<StockTransactions />} />
             <Route path="distributions" element={<Distributions />} />

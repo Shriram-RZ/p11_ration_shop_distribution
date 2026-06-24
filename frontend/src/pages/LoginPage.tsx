@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, Wheat, Lock, Mail, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Wheat, Lock, CreditCard, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import { AxiosError } from 'axios'
@@ -9,8 +9,8 @@ import { AxiosError } from 'axios'
 export default function LoginPage() {
   const navigate = useNavigate()
   const { login, isLoading } = useAuthStore()
-  const [email, setEmail] = useState('admin@rationflow.gov.in')
-  const [password, setPassword] = useState('Admin@123456')
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -18,13 +18,13 @@ export default function LoginPage() {
     e.preventDefault()
     setError(null)
 
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter your email and password.')
+    if (!identifier.trim() || !password.trim()) {
+      setError('Please enter your email / ration card number and password.')
       return
     }
 
     try {
-      await login({ email: email.trim(), password })
+      await login({ identifier: identifier.trim(), password })
       toast.success('Welcome back!')
       const role = useAuthStore.getState().user?.role
       navigate(role === 'customer' ? '/shop' : '/dashboard')
@@ -86,22 +86,22 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email */}
+              {/* Identifier */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Email Address
+                  Email or Ration Card Number
                 </label>
                 <div className="relative">
-                  <Mail
+                  <CreditCard
                     size={16}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                   />
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@rationflow.gov.in"
-                    autoComplete="email"
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="admin@rationflow.gov.in or RF-2024-0003"
+                    autoComplete="username"
                     className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
                   />
                 </div>
@@ -178,10 +178,10 @@ export default function LoginPage() {
               </p>
               <div className="space-y-0.5">
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Email: <span className="font-medium">admin@rationflow.gov.in</span>
+                  Admin: <span className="font-medium">admin@rationflow.gov.in</span> / <span className="font-medium">Admin@123456</span>
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Password: <span className="font-medium">Admin@123456</span>
+                  Customer: <span className="font-medium">RF-2024-0003</span> / <span className="font-medium">Customer@123</span>
                 </p>
               </div>
             </div>

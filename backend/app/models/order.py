@@ -7,9 +7,10 @@ from app.database import Base
 
 class OrderStatus(str, enum.Enum):
     pending = "pending"
-    confirmed = "confirmed"
-    completed = "completed"
-    cancelled = "cancelled"
+    approved = "approved"
+    ready = "ready"
+    delivered = "delivered"
+    rejected = "rejected"
 
 
 class Order(Base):
@@ -19,7 +20,7 @@ class Order(Base):
     order_number = Column(String(50), unique=True, index=True, nullable=False)
     customer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     total_amount = Column(Float, nullable=False, default=0.0)
-    status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.confirmed)
+    status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.pending)
     delivery_address = Column(Text, nullable=True)
     contact_phone = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

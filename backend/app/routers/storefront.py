@@ -1,15 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from datetime import datetime
 import uuid
 
 from app.database import get_db
 from app.dependencies import get_current_active_user, log_audit, get_client_ip
 from app.models.user import User
-from app.models.stock import Commodity, StockItem, StockTransaction, TransactionType
+from app.models.beneficiary import RationCard, RationCardStatus
+from app.models.stock import Commodity, StockItem
 from app.models.order import Order, OrderItem, OrderStatus
-from app.schemas.order import ProductResponse, OrderCreate, OrderResponse
+from app.schemas.order import (
+    ProductResponse, OrderCreate, OrderResponse,
+    CardInfoResponse, QuotaLine,
+)
+from app.core import ration_rules
 
 router = APIRouter(prefix="/store", tags=["Storefront"])
 
@@ -17,21 +21,25 @@ router = APIRouter(prefix="/store", tags=["Storefront"])
 DEFAULT_PRICE = 50.0
 
 
-def _product_for(commodity: Commodity, db: Session) -> ProductResponse:
-    stock_items = (
-        db.query(StockItem).filter(StockItem.commodity_id == commodity.id).all()
-    )
-    available = sum(si.quantity for si in stock_items)
-    priced = [si.cost_per_unit for si in stock_items if si.cost_per_unit > 0]
-    price = max(priced) if priced else DEFAULT_PRICE
-    return ProductResponse(
-        commodity_id=commodity.id,
-        name=commodity.name,
-        unit=commodity.unit,
-        description=commodity.description,
-        price=round(price, 2),
-        available_quantity=round(available, 2),
-    )
+def _active_card(user: User) -> RationCard:
+    """The customer's linked, active ration card — or 403."""
+    card = user.ration_card
+    if not card:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "No ration card linked to this account.")
+    if card.status != RationCardStatus.active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Your ration card is not active.")
+    return card
+
+
+def _available_stock(commodity_id: int, db: Session) -> float:
+    items = db.query(StockItem).filter(StockItem.commodity_id == commodity_id).all()
+    return sum(si.quantity for si in items)
+
+
+def _unit_price(commodity_id: int, db: Session) -> float:
+    items = db.query(StockItem).filter(StockItem.commodity_id == commodity_id).all()
+    priced = [si.cost_per_unit for si in items if si.cost_per_unit > 0]
+    return round(max(priced) if priced else DEFAULT_PRICE, 2)
 
 
 @router.get("/products", response_model=list[ProductResponse])
@@ -39,9 +47,62 @@ def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Catalog of purchasable commodities with price and available stock."""
-    commodities = db.query(Commodity).filter(Commodity.is_active == True).all()
-    return [_product_for(c, db) for c in commodities]
+    """Commodities the customer's category is eligible for, with price, stock and quota."""
+    card = _active_card(current_user)
+    category = card.holder.category.value
+
+    out: list[ProductResponse] = []
+    for c in db.query(Commodity).filter(Commodity.is_active == True).all():
+        if not ration_rules.is_eligible(category, c.name):
+            continue
+        out.append(ProductResponse(
+            commodity_id=c.id,
+            name=c.name,
+            unit=c.unit,
+            description=c.description,
+            price=_unit_price(c.id, db),
+            available_quantity=round(_available_stock(c.id, db), 2),
+            allocated_quota=ration_rules.allocated(category, c.name),
+            remaining_quota=round(
+                ration_rules.quota_remaining(db, current_user.id, category, c.id, c.name), 2
+            ),
+        ))
+    return out
+
+
+@router.get("/me/card", response_model=CardInfoResponse)
+def my_card(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Card profile + per-commodity monthly quota for the logged-in customer."""
+    card = _active_card(current_user)
+    holder = card.holder
+    category = holder.category.value
+
+    quota: list[QuotaLine] = []
+    for c in db.query(Commodity).filter(Commodity.is_active == True).all():
+        if not ration_rules.is_eligible(category, c.name):
+            continue
+        used = ration_rules.quota_used(db, current_user.id, c.id)
+        allocated = ration_rules.allocated(category, c.name)
+        quota.append(QuotaLine(
+            commodity_id=c.id, name=c.name, unit=c.unit,
+            allocated=allocated, used=round(used, 2),
+            remaining=round(max(0.0, allocated - used), 2),
+        ))
+
+    return CardInfoResponse(
+        card_number=card.card_number,
+        aadhaar_number=holder.aadhaar_number,
+        family_name=holder.full_name,
+        family_members=card.family_size,
+        category=category,
+        status=card.status.value,
+        district=holder.district,
+        state=holder.state,
+        quota=quota,
+    )
 
 
 @router.post("/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
@@ -51,12 +112,19 @@ def create_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Checkout the cart: validate stock, deduct it, and record the order."""
+    """Place an order: validate card, eligibility, quota and stock. Status starts pending.
+
+    Stock is NOT deducted here — it leaves inventory only when an admin marks the
+    order delivered (see routers/orders.py).
+    """
+    card = _active_card(current_user)
+    category = card.holder.category.value
+
     order_number = f"ORD-{datetime.utcnow():%Y%m%d}-{uuid.uuid4().hex[:6].upper()}"
     order = Order(
         order_number=order_number,
         customer_id=current_user.id,
-        status=OrderStatus.confirmed,
+        status=OrderStatus.pending,
         delivery_address=payload.delivery_address,
         contact_phone=payload.contact_phone,
         total_amount=0.0,
@@ -72,46 +140,33 @@ def create_order(
             .first()
         )
         if not commodity:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"Product {line.commodity_id} not found")
+
+        if not ration_rules.is_eligible(category, commodity.name):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Product {line.commodity_id} not found",
+                status.HTTP_400_BAD_REQUEST,
+                f"{commodity.name} is not available for {category} ration cards.",
             )
 
-        # FIFO stock items for this commodity that still have quantity.
-        stock_items = (
-            db.query(StockItem)
-            .filter(StockItem.commodity_id == commodity.id, StockItem.quantity > 0)
-            .order_by(StockItem.id)
-            .all()
+        remaining = ration_rules.quota_remaining(
+            db, current_user.id, category, commodity.id, commodity.name
         )
-        available = sum(si.quantity for si in stock_items)
+        if line.quantity > remaining:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Quota exceeded for {commodity.name}: {round(remaining, 2)} {commodity.unit} "
+                f"remaining this month, {line.quantity} requested.",
+            )
+
+        available = _available_stock(commodity.id, db)
         if available < line.quantity:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient stock for {commodity.name}: "
-                f"{available} {commodity.unit} available, {line.quantity} requested",
+                status.HTTP_400_BAD_REQUEST,
+                f"Insufficient stock for {commodity.name}: {round(available, 2)} {commodity.unit} "
+                f"available, {line.quantity} requested.",
             )
 
-        priced = [si.cost_per_unit for si in stock_items if si.cost_per_unit > 0]
-        unit_price = max(priced) if priced else DEFAULT_PRICE
-
-        # Deduct requested quantity across stock items (FIFO).
-        remaining = line.quantity
-        for si in stock_items:
-            if remaining <= 0:
-                break
-            take = min(si.quantity, remaining)
-            si.quantity -= take
-            remaining -= take
-            db.add(StockTransaction(
-                stock_item_id=si.id,
-                transaction_type=TransactionType.distributed,
-                quantity=take,
-                reference_id=order_number,
-                notes=f"Customer order {order_number}",
-                created_by=current_user.id,
-            ))
-
+        unit_price = _unit_price(commodity.id, db)
         subtotal = round(unit_price * line.quantity, 2)
         total += subtotal
         db.add(OrderItem(
@@ -120,7 +175,7 @@ def create_order(
             commodity_name=commodity.name,
             unit=commodity.unit,
             quantity=line.quantity,
-            unit_price=round(unit_price, 2),
+            unit_price=unit_price,
             subtotal=subtotal,
         ))
 
@@ -129,10 +184,7 @@ def create_order(
     db.refresh(order)
 
     log_audit(
-        db=db,
-        user_id=current_user.id,
-        action="PLACE_ORDER",
-        resource="order",
+        db=db, user_id=current_user.id, action="PLACE_ORDER", resource="order",
         resource_id=order.id,
         details={"order_number": order_number, "total": order.total_amount},
         ip_address=get_client_ip(request),

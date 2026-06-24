@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Package, Truck, Users, CreditCard,
   Warehouse, Store, BarChart3, ScrollText, Bell, Settings,
-  LogOut, ChevronLeft, ChevronRight, Shield, Wheat, FileText
+  LogOut, ChevronLeft, ChevronRight, Shield, Wheat, FileText, ShoppingBag
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { cn } from '@/lib/utils'
@@ -32,6 +32,7 @@ const navSections: NavSection[] = [
   {
     title: 'OPERATIONS',
     items: [
+      { label: 'Orders', path: '/orders', icon: <ShoppingBag size={18} /> },
       { label: 'Stock', path: '/stock', icon: <Package size={18} /> },
       { label: 'Distributions', path: '/distributions', icon: <Truck size={18} /> },
       { label: 'Beneficiaries', path: '/beneficiaries', icon: <Users size={18} /> },

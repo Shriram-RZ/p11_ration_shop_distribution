@@ -22,8 +22,12 @@ export default function Storefront() {
 
   const inCart = (id: number) => items.some((i) => i.commodity_id === id)
 
+  // Effective ceiling is the smaller of stock on hand and remaining monthly quota.
+  const maxQty = (p: Product) => Math.min(p.available_quantity, p.remaining_quota)
+
   const handleAdd = (p: Product) => {
-    addItem(p, 1)
+    // Cap the cart to the quota/stock ceiling by overriding available_quantity.
+    addItem({ ...p, available_quantity: maxQty(p) }, 1)
     toast.success(`${p.name} added to cart`)
   }
 
@@ -45,7 +49,9 @@ export default function Storefront() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {products?.map((p, idx) => {
-            const out = p.available_quantity <= 0
+            const max = maxQty(p)
+            const out = max <= 0
+            const noQuota = p.remaining_quota <= 0 && p.available_quantity > 0
             return (
               <motion.div
                 key={p.commodity_id}
@@ -66,7 +72,11 @@ export default function Storefront() {
                         : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400')
                     }
                   >
-                    {out ? 'Out of stock' : `${formatNumber(p.available_quantity)} ${p.unit} left`}
+                    {noQuota
+                      ? 'Quota used up'
+                      : out
+                      ? 'Out of stock'
+                      : `${formatNumber(max)} ${p.unit} left`}
                   </span>
                 </div>
 
@@ -77,6 +87,9 @@ export default function Storefront() {
                   <p className="text-lg font-bold text-green-600">
                     ₹{formatNumber(p.price)}
                     <span className="text-xs font-normal text-slate-400"> / {p.unit}</span>
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Quota: {formatNumber(p.remaining_quota)}/{formatNumber(p.allocated_quota)} {p.unit}
                   </p>
                 </div>
 

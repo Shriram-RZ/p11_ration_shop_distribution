@@ -147,6 +147,24 @@ def seed_initial_data(db: Session):
     db.flush()
     print("✅ Sample beneficiaries created")
 
+    # --- Demo customer accounts linked to seeded cards (login by card number) ---
+    demo_accounts = [
+        {"card": "RF-2024-0003", "password": "Customer@123"},  # AAY (gets Kerosene)
+        {"card": "RF-2024-0001", "password": "Customer@123"},  # BPL
+    ]
+    for d in demo_accounts:
+        card = db.query(RationCard).filter(RationCard.card_number == d["card"]).first()
+        if card and not db.query(User).filter(User.card_id == card.id).first():
+            db.add(User(
+                full_name=card.holder.full_name,
+                hashed_password=get_password_hash(d["password"]),
+                role=UserRole.customer,
+                is_active=True,
+                card_id=card.id,
+            ))
+    db.flush()
+    print("✅ Demo customer accounts created (login with card number, password Customer@123)")
+
     # --- Welcome notification ---
     if not db.query(Notification).first():
         db.add(Notification(
@@ -177,8 +195,18 @@ async def lifespan(app: FastAPI):
     try:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'customer'"))
+            # Order approval lifecycle values added to existing databases idempotently.
+            for value in ("approved", "ready", "delivered", "rejected"):
+                conn.execute(text(f"ALTER TYPE orderstatus ADD VALUE IF NOT EXISTS '{value}'"))
+            # `users.email` was made nullable for card-based customer accounts,
+            # and `users.card_id` links a customer to their ration card.
+            conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+            conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS card_id INTEGER "
+                "REFERENCES ration_cards(id) ON DELETE SET NULL"
+            ))
     except Exception as e:
-        print(f"⚠️  Could not ensure 'customer' role enum value: {e}")
+        print(f"⚠️  Could not run enum/column migrations: {e}")
     db = SessionLocal()
     try:
         seed_initial_data(db)
@@ -213,11 +241,12 @@ app.add_middleware(
 from app.routers import (
     auth, users, beneficiaries, ration_cards,
     stock, distributions, warehouses, shops,
-    notifications, reports, audit, storefront,
+    notifications, reports, audit, storefront, orders,
 )
 
 app.include_router(auth.router)
 app.include_router(storefront.router)
+app.include_router(orders.router)
 app.include_router(users.router)
 app.include_router(beneficiaries.router)
 app.include_router(ration_cards.router)

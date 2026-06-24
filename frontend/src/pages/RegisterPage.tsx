@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, Wheat, Lock, Mail, User, Phone, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Wheat, Lock, CreditCard, Fingerprint, Phone, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import { AxiosError } from 'axios'
@@ -9,8 +9,8 @@ import { AxiosError } from 'axios'
 export default function RegisterPage() {
   const navigate = useNavigate()
   const { register, isLoading } = useAuthStore()
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
+  const [aadhaar, setAadhaar] = useState('')
+  const [cardNumber, setCardNumber] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -20,8 +20,12 @@ export default function RegisterPage() {
     e.preventDefault()
     setError(null)
 
-    if (!fullName.trim() || !email.trim() || !password.trim()) {
-      setError('Please fill in your name, email and password.')
+    if (!aadhaar.trim() || !cardNumber.trim() || !phone.trim() || !password.trim()) {
+      setError('Please fill in all fields.')
+      return
+    }
+    if (!/^\d{12}$/.test(aadhaar.trim())) {
+      setError('Aadhaar number must be 12 digits.')
       return
     }
     if (password.length < 6) {
@@ -31,16 +35,16 @@ export default function RegisterPage() {
 
     try {
       await register({
-        full_name: fullName.trim(),
-        email: email.trim(),
+        aadhaar_number: aadhaar.trim(),
+        card_number: cardNumber.trim(),
+        phone: phone.trim(),
         password,
-        phone: phone.trim() || undefined,
       })
-      toast.success('Account created — welcome!')
+      toast.success('Account verified — welcome!')
       navigate('/shop')
     } catch (err) {
       const ax = err as AxiosError<{ detail: string }>
-      setError(ax.response?.data?.detail ?? 'Registration failed. Please try again.')
+      setError(ax.response?.data?.detail ?? 'Registration failed. Please check your details.')
     }
   }
 
@@ -66,8 +70,8 @@ export default function RegisterPage() {
               <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-3 shadow-lg">
                 <Wheat size={28} className="text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-white">Create your account</h1>
-              <p className="text-green-200 text-sm mt-1">Shop ration commodities online</p>
+              <h1 className="text-2xl font-bold text-white">Verify your ration card</h1>
+              <p className="text-green-200 text-sm mt-1">Register with your Smart Ration Card details</p>
             </div>
           </div>
 
@@ -85,16 +89,16 @@ export default function RegisterPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
-                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" className={inputCls} />
+                <Fingerprint size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value)} placeholder="Aadhaar number (12 digits)" inputMode="numeric" maxLength={12} className={inputCls} />
               </div>
               <div className="relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" autoComplete="email" className={inputCls} />
+                <CreditCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="Smart Ration Card number (e.g. RF-2024-0003)" className={inputCls} />
               </div>
               <div className="relative">
                 <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (optional)" className={inputCls} />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Registered mobile number" inputMode="numeric" className={inputCls} />
               </div>
               <div className="relative">
                 <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

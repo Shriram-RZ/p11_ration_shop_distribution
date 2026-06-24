@@ -26,8 +26,9 @@ export default function Cart() {
       clear()
       queryClient.invalidateQueries({ queryKey: ['my-orders'] })
       queryClient.invalidateQueries({ queryKey: ['store-products'] })
+      queryClient.invalidateQueries({ queryKey: ['my-card'] })
       toast.success(`Order ${order.order_number} placed!`)
-      navigate('/orders')
+      navigate('/my-orders')
     },
     onError: (err) => {
       const ax = err as AxiosError<{ detail: string }>

@@ -14,6 +14,31 @@ class ProductResponse(BaseModel):
     description: Optional[str] = None
     price: float
     available_quantity: float
+    allocated_quota: float = 0.0
+    remaining_quota: float = 0.0
+
+
+# ─── Customer card + quota ──────────────────────────────────────────────────────
+
+class QuotaLine(BaseModel):
+    commodity_id: int
+    name: str
+    unit: str
+    allocated: float
+    used: float
+    remaining: float
+
+
+class CardInfoResponse(BaseModel):
+    card_number: str
+    aadhaar_number: str
+    family_name: str
+    family_members: int
+    category: str
+    status: str
+    district: str
+    state: str
+    quota: List[QuotaLine] = []
 
 
 # ─── Orders ───────────────────────────────────────────────────────────────────
@@ -52,3 +77,23 @@ class OrderResponse(BaseModel):
     contact_phone: Optional[str] = None
     created_at: datetime
     items: List[OrderItemResponse] = []
+
+
+# ─── Admin order panel ──────────────────────────────────────────────────────────
+
+class AdminOrderResponse(BaseModel):
+    id: int
+    order_number: str
+    customer_name: str
+    card_number: Optional[str] = None
+    aadhaar_number: Optional[str] = None
+    category: Optional[str] = None
+    total_amount: float
+    total_quantity: float
+    status: str
+    created_at: datetime
+    items: List[OrderItemResponse] = []
+
+
+class OrderStatusUpdate(BaseModel):
+    status: str

@@ -16,17 +16,21 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    # Nullable: customers register against a ration card and have no email.
+    email = Column(String(255), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=False)
     hashed_password = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.distribution_staff)
     is_active = Column(Boolean, default=True, nullable=False)
     shop_id = Column(Integer, ForeignKey("shops.id", ondelete="SET NULL"), nullable=True)
+    # One customer account per ration card.
+    card_id = Column(Integer, ForeignKey("ration_cards.id", ondelete="SET NULL"), unique=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     last_login = Column(DateTime, nullable=True)
 
     shop = relationship("Shop", back_populates="staff", foreign_keys=[shop_id])
+    ration_card = relationship("RationCard", foreign_keys=[card_id])
     notifications_created = relationship("Notification", back_populates="creator", foreign_keys="Notification.created_by")
     audit_logs = relationship("AuditLog", back_populates="user")
     stock_transactions = relationship("StockTransaction", back_populates="created_by_user")

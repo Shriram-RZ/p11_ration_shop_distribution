@@ -6,12 +6,26 @@ from datetime import datetime
 from app.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.dependencies import get_current_active_user, log_audit, get_client_ip
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.beneficiary import RationCard, RationCardHolder, RationCardStatus
 from app.schemas.auth import Token, LoginRequest, ChangePasswordRequest, RegisterRequest
 from app.schemas.user import UserResponse
-from app.models.user import UserRole
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+def _token_for(user: User) -> Token:
+    card = user.ration_card
+    return Token(
+        access_token=create_access_token(data={"sub": str(user.id)}),
+        token_type="bearer",
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role.value,
+        card_number=card.card_number if card else None,
+        category=card.holder.category.value if card and card.holder else None,
+    )
 
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
@@ -20,44 +34,54 @@ def register(
     payload: RegisterRequest,
     db: Session = Depends(get_db),
 ):
-    """Public self sign-up for customers (storefront shoppers)."""
-    existing = db.query(User).filter(User.email == payload.email).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An account with this email already exists.",
-        )
+    """Customer sign-up — verified against the ration card database."""
+    card = (
+        db.query(RationCard)
+        .join(RationCardHolder, RationCard.holder_id == RationCardHolder.id)
+        .filter(RationCard.card_number == payload.card_number)
+        .first()
+    )
+    if not card:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No ration card found with that number.")
+
+    holder = card.holder
+    if holder.aadhaar_number != payload.aadhaar_number:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Aadhaar number does not match this ration card.")
+    if (holder.phone or "") != payload.phone:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Mobile number does not match this ration card.")
+    if card.status != RationCardStatus.active or not holder.is_active:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This ration card is not active.")
+
+    if db.query(User).filter(User.card_id == card.id).first():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "An account already exists for this ration card.")
 
     user = User(
-        email=payload.email,
-        full_name=payload.full_name,
+        full_name=holder.full_name,
         hashed_password=get_password_hash(payload.password),
         role=UserRole.customer,
         is_active=True,
+        card_id=card.id,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    access_token = create_access_token(data={"sub": str(user.id)})
-
     log_audit(
-        db=db,
-        user_id=user.id,
-        action="REGISTER",
-        resource="auth",
-        details={"email": user.email},
-        ip_address=get_client_ip(request),
+        db=db, user_id=user.id, action="REGISTER", resource="auth",
+        details={"card_number": card.card_number}, ip_address=get_client_ip(request),
     )
+    return _token_for(user)
 
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        user_id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        role=user.role.value,
-    )
+
+def _resolve_user(db: Session, identifier: str) -> User | None:
+    """Look up a user by email (staff) or by linked ration card number (customer)."""
+    user = db.query(User).filter(User.email == identifier).first()
+    if user:
+        return user
+    card = db.query(RationCard).filter(RationCard.card_number == identifier).first()
+    if card:
+        return db.query(User).filter(User.card_id == card.id).first()
+    return None
 
 
 @router.post("/login", response_model=Token)
@@ -66,11 +90,11 @@ def login(
     login_data: LoginRequest,
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.email == login_data.email).first()
+    user = _resolve_user(db, login_data.identifier)
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
@@ -79,29 +103,14 @@ def login(
             detail="Account is inactive. Contact administrator.",
         )
 
-    # Update last login
     user.last_login = datetime.utcnow()
     db.commit()
 
-    access_token = create_access_token(data={"sub": str(user.id)})
-
     log_audit(
-        db=db,
-        user_id=user.id,
-        action="LOGIN",
-        resource="auth",
-        details={"email": user.email},
-        ip_address=get_client_ip(request),
+        db=db, user_id=user.id, action="LOGIN", resource="auth",
+        details={"identifier": login_data.identifier}, ip_address=get_client_ip(request),
     )
-
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        user_id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        role=user.role.value,
-    )
+    return _token_for(user)
 
 
 @router.post("/login/form", response_model=Token, include_in_schema=False)
@@ -111,11 +120,11 @@ def login_form(
     db: Session = Depends(get_db),
 ):
     """OAuth2 form-compatible login endpoint for Swagger UI"""
-    user = db.query(User).filter(User.email == form_data.username).first()
+    user = _resolve_user(db, form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
@@ -126,17 +135,7 @@ def login_form(
 
     user.last_login = datetime.utcnow()
     db.commit()
-
-    access_token = create_access_token(data={"sub": str(user.id)})
-
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        user_id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        role=user.role.value,
-    )
+    return _token_for(user)
 
 
 @router.post("/logout")

@@ -1,9 +1,10 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Email (staff/admin) or ration card number (customer).
+    identifier: str
     password: str
 
 
@@ -11,9 +12,11 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user_id: int
-    email: str
+    email: Optional[str] = None
     full_name: str
     role: str
+    card_number: Optional[str] = None
+    category: Optional[str] = None
 
 
 class TokenData(BaseModel):
@@ -27,7 +30,8 @@ class ChangePasswordRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    full_name: str
-    email: EmailStr
-    password: str
-    phone: Optional[str] = None
+    """Customer self sign-up: verified against the ration card database."""
+    aadhaar_number: str = Field(min_length=12, max_length=12)
+    card_number: str
+    phone: str
+    password: str = Field(min_length=6)

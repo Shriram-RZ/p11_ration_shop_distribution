@@ -3,10 +3,10 @@
 export type UserRole = 'admin' | 'shop_manager' | 'distribution_staff' | 'supervisor' | 'shopkeeper' | 'inspector' | 'customer'
 
 export interface RegisterRequest {
-  full_name: string
-  email: string
+  aadhaar_number: string
+  card_number: string
+  phone: string
   password: string
-  phone?: string
 }
 
 // ─── Storefront (customer side) ───────────────────────────────────────────────
@@ -18,6 +18,43 @@ export interface Product {
   description?: string
   price: number
   available_quantity: number
+  allocated_quota: number
+  remaining_quota: number
+}
+
+export interface QuotaLine {
+  commodity_id: number
+  name: string
+  unit: string
+  allocated: number
+  used: number
+  remaining: number
+}
+
+export interface CardInfo {
+  card_number: string
+  aadhaar_number: string
+  family_name: string
+  family_members: number
+  category: RationCardCategory
+  status: RationCardStatus
+  district: string
+  state: string
+  quota: QuotaLine[]
+}
+
+export interface AdminOrder {
+  id: number
+  order_number: string
+  customer_name: string
+  card_number?: string
+  aadhaar_number?: string
+  category?: RationCardCategory
+  total_amount: number
+  total_quantity: number
+  status: string
+  created_at: string
+  items: OrderItem[]
 }
 
 export interface CartItem {
@@ -72,7 +109,7 @@ export interface User {
 }
 
 export interface LoginRequest {
-  email: string
+  identifier: string
   password: string
 }
 
@@ -80,9 +117,11 @@ export interface LoginResponse {
   access_token: string
   token_type: string
   user_id: number
-  email: string
+  email?: string
   full_name: string
   role: UserRole
+  card_number?: string
+  category?: RationCardCategory
 }
 
 export interface ChangePasswordRequest {

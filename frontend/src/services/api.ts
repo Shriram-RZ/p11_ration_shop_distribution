@@ -6,6 +6,8 @@ import type {
   RegisterRequest,
   Product,
   Order,
+  CardInfo,
+  AdminOrder,
   ChangePasswordRequest,
   RationCardHolder,
   RationCard,
@@ -101,6 +103,19 @@ export const storeApi = {
 
   getMyOrders: () =>
     api.get<Order[]>('/store/orders').then((r) => r.data),
+
+  getMyCard: () =>
+    api.get<CardInfo>('/store/me/card').then((r) => r.data),
+}
+
+// ─── Admin Orders ────────────────────────────────────────────────────────────
+
+export const adminOrdersApi = {
+  getAll: (params?: { status_filter?: string; category?: string; q?: string }) =>
+    api.get<AdminOrder[]>('/orders', { params }).then((r) => r.data),
+
+  updateStatus: (id: number, status: string) =>
+    api.patch<AdminOrder>(`/orders/${id}/status`, { status }).then((r) => r.data),
 }
 
 // ─── Users ─────────────────────────────────────────────────────────────────────
